@@ -1,0 +1,28 @@
+# How git should treat each file type. This lives in the repo, so every
+# clone behaves the same way regardless of that machine's core.autocrlf
+# setting -- which is per-user and differs across Windows, macOS and Linux.
+
+# Text files are stored LF in the repository and checked out with whatever
+# the local platform uses. Keeps diffs meaningful instead of showing whole
+# files as changed when only line endings differ.
+* text=auto
+
+*.m          text
+*.txt        text
+*.ino        text
+.gitignore   text
+.gitattributes text
+
+# Binary. Never apply line-ending conversion and never try to diff these as
+# text. Git already detects them correctly, but only by heuristic -- it
+# scans for NUL bytes near the start of the file. A MATLAB .mat whose header
+# happened to lack early NUL bytes would be treated as text, silently
+# corrupted by CRLF conversion, and be very hard to debug. These lines make
+# the detection a guarantee rather than a guess.
+*.mat        binary
+*.mlx        binary
+*.avi        binary
+*.wav        binary
+*.png        binary
+*.ai         binary
+*.bhv2       binary
