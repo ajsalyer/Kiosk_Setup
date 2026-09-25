@@ -1,0 +1,47 @@
+# Sized for GitHub. Everything the task needs is tracked EXCEPT the four
+# oversized movies listed below, which exceed GitHub's hard 100 MB per-file
+# limit. The other 19 .avi (43.9 MB total), all .wav audio and all .png
+# images ARE tracked, so a clone is complete apart from those four.
+
+# ---------------------------------------------------------------------------
+# Oversized stimuli: 151.2 MB each, 604.8 MB together. Named explicitly
+# rather than matched by a pattern, so nothing else is caught by accident and
+# it is obvious what is missing from a clone.
+#
+# A.avi and B4.avi are referenced by mGLO_conditions_main.txt, so a fresh
+# clone CANNOT run the task until these are copied in from the rig.
+# A.avi is byte-identical to A4.avi, and B.avi to B4.avi, so only two
+# distinct files (302 MB) actually need copying.
+#
+# To track them instead, set up Git LFS and delete this block.
+# ---------------------------------------------------------------------------
+stimulus/visual/A.avi
+stimulus/visual/A4.avi
+stimulus/visual/B.avi
+stimulus/visual/B4.avi
+
+# Recorded session data. MonkeyLogic writes recordings to the task root (it
+# has no setting for an output folder); they get moved into "data archive/"
+# by hand. That folder IS tracked, via .gitkeep, so a clone arrives with
+# somewhere to put them -- but nothing inside it is ever committed, since
+# recordings are output rather than source and grow with every run.
+*.bhv2
+data archive/*
+!data archive/.gitkeep
+
+# Old leftovers from the folder reorganisation.
+[Aa]rchive/
+
+# Generated analysis output, regenerable from the .bhv2 files.
+analysis/figures/
+analysis/results/
+
+# macOS resource-fork stubs and Finder metadata.
+._*
+.DS_Store
+
+# MATLAB scratch and config backups.
+*.asv
+*.m~
+*.bak_*
+slprj/
