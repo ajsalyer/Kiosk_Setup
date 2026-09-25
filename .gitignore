@@ -36,6 +36,12 @@ data archive/*
 analysis/figures/
 analysis/results/
 
+# The day's trial schedule, written by make_trial_order and read back by
+# mglo_condition_selector (trial_orders/trial_order_<yyyymmdd>.mat). A new
+# file appears every day the task runs, and the selector rebuilds it
+# automatically when the day's file is missing, so it is output not source.
+trial_orders/
+
 # macOS resource-fork stubs and Finder metadata.
 ._*
 .DS_Store
