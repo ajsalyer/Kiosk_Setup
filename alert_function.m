@@ -7,8 +7,9 @@ function alert_function(hook,MLConfig,TrialRecord) %#ok<INUSD>
 % at <ML>/alert_function.m and still applies to every other experiment.
 %
 % TO MAKE THIS RUN: the alert button on the task panel of the MonkeyLogic
-% main menu must be ON. It is off by default (RemoteAlert = 0 in the saved
-% config), and with it off none of these hooks fire.
+% main menu must be ON (saved in the config as RemoteAlert). MonkeyLogic
+% ships with it off, and with it off none of these hooks fire -- check the
+% button before a session rather than assuming the loaded config has it on.
 %
 % What it does, in two stages, because the two things need different moments:
 %

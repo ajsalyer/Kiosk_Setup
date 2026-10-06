@@ -30,7 +30,10 @@ function create_drifting_donut_VD(SIZE_VD,DONUT_SIZE_VD,BACKGROUND_COLOR,MAX_COL
     pixels_per_cm = RESOLUTION/WIDTH;
     SIZE = round(tan(deg2rad(SIZE_VD)) * DISTANCE * pixels_per_cm) * 2;
 
-    DONUT_SIZE = round(tan(deg2rad(DONUT_SIZE_VD)) * DISTANCE * pixels_per_cm);
+    % Same conversion as SIZE, so the hole and the disc use one convention
+    % (DONUT_SIZE is a diameter in pixels below, used as DONUT_SIZE/2). It
+    % was missing the *2, which made the hole half the requested size.
+    DONUT_SIZE = round(tan(deg2rad(DONUT_SIZE_VD)) * DISTANCE * pixels_per_cm) * 2;
 
     %Create the video file we are going to make
     v = VideoWriter(FILENAME);

@@ -30,7 +30,7 @@ errCodes = errCodes(1:n);
 
 uniqueTokens = unique(tokenBal)';
 nLevels = numel(uniqueTokens);
-rows = zeros(nLevels, 7); % [Balance Perf Sens Total Idle Break nCorr]
+rows = nan(nLevels, 7); % [Balance Perf Sens Total Idle Break nCorr]
 
 for i = 1:nLevels
     % Balance(i) is end-of-trial: trial i+1 started at this balance.
@@ -41,6 +41,10 @@ for i = 1:nLevels
     rows(i, :) = [uniqueTokens(i), stats.perf, stats.sens, stats.total, ...
                   stats.idleRate, stats.breakRate, stats.nCorr];
 end
+% A balance with no following trial (e.g. only ever the session's last
+% balance) has no row; drop it rather than plotting it as balance 0.
+rows = rows(isfinite(rows(:,1)), :);
+nLevels = size(rows, 1);
 
 R.balances = rows(:,1);
 R.perf = rows(:,2);
@@ -71,7 +75,7 @@ legend('Performance', 'Sensitivity', 'Idle %', 'Break %', 'Location', 'southeast
 % Trendlines only where fittable (needs >= 2 distinct x and finite y).
 colors = ["#0072BD", "#EDB120", "#AC00DC"];
 metrics = [2, 5, 6];
-names = ["Fit Perf", "Fit Break", "Fit Avoid"];
+names = ["Fit Perf", "Fit Idle", "Fit Break"];  % columns 2, 5, 6
 xx = dataToPlot(:,1);
 for k = 1:3
     yy = dataToPlot(:, metrics(k));
@@ -84,11 +88,9 @@ for k = 1:3
     end
 end
 hold off;
-try
-    sessionDate = sprintf('Session: %02d/%02d/%02d', bhv.TrialDateTime(end, 2:4));
-    title(sessionDate);
-catch
-    % TrialDateTime shape varies across ML versions; title is decorative.
+[~, ~, sessionDate] = mgloSessionStart(bhv);   % mm/dd/yy, '' if unknown
+if ~isempty(sessionDate)
+    title(['Session: ' sessionDate]);
 end
 mgloSaveFigure(fh, 'Token Economics', opts);
 end

@@ -11,7 +11,7 @@ function R = mglo_autoanalyze(sessionFile)
 %
 %   MonkeyLogic writes recordings next to the conditions file, i.e. the task
 %   root, and has no setting for an output folder -- so that is where this
-%   looks.
+%   looks when it is not told which file to use.
 %
 %   THIS MUST NEVER THROW. It runs inside MonkeyLogic's own process, at the
 %   end of a session, on a rig. An analysis bug must not take down the task
@@ -19,10 +19,13 @@ function R = mglo_autoanalyze(sessionFile)
 %   warning. The recording itself is never modified, moved or deleted.
 %
 %   Figures are built invisibly and closed after saving, so nothing pops up
-%   over the control screen.
+%   over the control screen. Only figures this run created are closed:
+%   MonkeyLogic's own windows (its main menu is still open at 'fini') and
+%   anything the user had open are left alone.
 
 R = [];
 taskRoot = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+figsBefore = findall(0, 'Type', 'figure');   % everything that predates us
 
 try
     %--- work out which file to analyse --------------------------------
@@ -60,7 +63,7 @@ try
 
     R = mgloAnalyzeSession(bhv, struct('tag', stem, 'subject', subject));
 
-    close all force;
+    closeNewFigures(figsBefore);
     fprintf('mglo_autoanalyze: done (%d trials, %.1f%% correct).\n', ...
             R.nTrials, R.overallAcc);
 
@@ -70,7 +73,21 @@ catch ME
     warning('mglo_autoanalyze:failed', ...
             'Automatic analysis failed (%s): %s\nThe recording is untouched; run the analysis by hand.', ...
             ME.identifier, ME.message);
-    try, close all force; catch, end
+    try, closeNewFigures(figsBefore); catch, end
+end
+end
+
+
+function closeNewFigures(figsBefore)
+%closeNewFigures  Delete the figures that did not exist before this run.
+%   findall (not findobj) so figures with hidden handles are seen too;
+%   delete rather than close so a CloseRequestFcn cannot block it.
+figsNow = findall(0, 'Type', 'figure');
+for k = 1:numel(figsNow)
+    f = figsNow(k);
+    if ~any(f == figsBefore) && isgraphics(f)
+        delete(f);
+    end
 end
 end
 

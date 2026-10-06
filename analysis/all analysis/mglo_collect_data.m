@@ -1,11 +1,12 @@
 function report = mglo_collect_data(srcDir, dstDir)
-%mglo_collect_data  Move recorded .bhv2 sessions from the task root into data/.
+%mglo_collect_data  Move recorded .bhv2 sessions from the task root into "data archive/".
 %
 %   MonkeyLogic writes each session next to the conditions file, i.e. the
-%   project root, and has no persisted setting for an output folder. The
-%   analysis code reads from <repo>/data. This sweeps the gap.
+%   project root, and has no persisted setting for an output folder.
+%   Recordings are kept in <repo>/data archive/, whose contents git ignores.
+%   This sweeps them across.
 %
-%   mglo_collect_data                 % root -> <repo>/data
+%   mglo_collect_data                 % root -> <repo>/data archive
 %   mglo_collect_data(src, dst)       % explicit folders
 %   report = mglo_collect_data(...)   % table of what happened
 %
@@ -28,7 +29,7 @@ if nargin < 1 || isempty(srcDir)
     srcDir = fileparts(fileparts(fileparts(mfilename('fullpath'))));
 end
 if nargin < 2 || isempty(dstDir)
-    dstDir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'data');
+    dstDir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'data archive');
 end
 
 files = dir(fullfile(srcDir, '*.bhv2'));

@@ -1,9 +1,10 @@
 % MULTIMODAL Global Local Oddball - ACTIVE/PASSIVE toggle - Tokenized - OPTIMIZED
 %
-% Works with the rig condition file mGLO_conditions_1block.txt (26 conditions,
+% Works with the rig condition file mGLO_conditions_main.txt (26 conditions,
 % single MonkeyLogic block, TaskObjects 1-7: fix + [snd mov] x 3) plus
-% mglo_condition_selector / mglo_block_selector (virtual blocks in
-% trial_orders/*.mat, published as TrialRecord.User.VirtualBlock).
+% mglo_condition_selector / mglo_block_selector (virtual blocks in the day's
+% trial_orders/*.mat, created on first use by make_trial_order, published as
+% TrialRecord.User.VirtualBlock).
 %
 % samp labels are 'VAVAVA': one [visual audio] letter pair per presentation,
 % three presentations, the third being the one that can deviate. 'O' in either
@@ -42,7 +43,6 @@ INCORRECT_TIME_OUT_PENALTY = 1000;
 PUMP_DURATION = reward_dur;
 NUM_REWARD_BASELINE = 1;
 NUM_REWARD_TOKENS = 10;
-NUM_REWARD_CUE = 0;
 
 MAX_TOKENS = 10;
 MIN_TOKENS = 0;
@@ -68,9 +68,6 @@ MAX_REACTION_TIME = 2500;
 
 INCORRECT_SCALE = 1;
 SCALE_CORRECT_TRIALS = 50;
-
-MIN_BLOCK_SIZE = 5;
-MAX_BLOCK_SIZE = 15;
 
 REPEAT_ERROR_PROB = 0.0;
 DYNAMIC_DELTA_GUIDE = 0.001;
@@ -171,13 +168,6 @@ TrialRecord.User.Standard_Ratio  = STRD_RATIO;
 TrialRecord.User.Primary_OB_Ratio = OB_RATIO;
 TrialRecord.User.CurrentGuideScale = 1.0;
 
-if TrialRecord.BlocksSelected > 1
-    if TrialRecord.CurrentTrialWithinBlock == 1
-        TrialRecord.User.blockSize = randi([MIN_BLOCK_SIZE, MAX_BLOCK_SIZE], 1);
-    end
-    user_text(append("Current Block Size: ", num2str(TrialRecord.User.blockSize)));
-end
-
 if TrialRecord.CurrentTrialNumber == 1 % Initiate Variables
 
     TrialRecord.User.CurrentTokens = TrialRecord.User.MinTokens;
@@ -186,7 +176,7 @@ if TrialRecord.CurrentTrialNumber == 1 % Initiate Variables
     TrialRecord.User.LastTokenOut = 1;
 
     TrialRecord.User.ChoiceLog = [];
-    TrialRecord.User.CorrectCount = 0;
+    TrialRecord.User.AnsweredCount = 0; % correct + incorrect (error 0 or 6)
     TrialRecord.User.CorrectTrials = 0;
 
     TrialRecord.User.ManReward = 0;
@@ -261,8 +251,8 @@ yPosition = TOKEN_REL_Y * REL2DEG;
 
 % OPTIMIZATION: Define Token Styles ONCE here to avoid repetitive checking in loops
 if strcmp(TOKENS{end}, 'UNTOKENIZED')
-    activeToken = {'stimulus/visual/nullgrey.png'};
-    inactiveToken = {'stimulus/visual/nullgrey.png'};
+    activeToken = {'stimulus/visual/nullGrey.png'};
+    inactiveToken = {'stimulus/visual/nullGrey.png'};
     isCircles = false;
 elseif strcmp(TOKENS{end}, 'CIRCLES')
     activeToken = {[1 1 0], [1 1 0], 1};
@@ -347,7 +337,8 @@ CHOICE_TIME = 3;
 hotkey('x', 'escape_screen;');
 hotkey('p', 'escape_screen; error("Force stop by investigator/user.");');
 hotkey('r', ['try ','TrialRecord.User.ManReward = TrialRecord.User.ManReward + 1; ','goodmonkey(100, ''juiceline'',7, ''numreward'',1, ''pausetime'',50, ''nonblocking'',1); ','catch ','escape_screen(); ','end']);
-bhv_variable('ManReward', TrialRecord.User.ManReward);
+% ManReward is saved at the END of the trial (with the other bhv_variables),
+% so presses made during this trial are included in this trial's count.
 
 % detect an available tracker (rig autodetect; falls back to touch_)
 if exist('eye_','var'), tracker = eye_;
@@ -360,6 +351,11 @@ else, error('This task requires eye, touch or joystick input. Please set it up o
 end
 
 %Mark the condition using a behavorial code
+% NOTE: 100+condition (101-126) shares numbers with the scene codes
+% (101-106, 109, 110) sent by run_scene below. The value is kept for
+% compatibility with the recording-side decoders; offline analysis must not
+% look scene codes up by value alone -- mgloCalculateRT anchors on the
+% scene ORDER (106 -> 109 -> 50) instead.
 current_condition = TrialRecord.CurrentCondition;
 eventmarker(current_condition+100);
 correctColor = [1 0 0];
@@ -409,19 +405,18 @@ AUDITORY = false;
 VISUAL = false;
 modeFLAG = MODE{modeCNT};
 
-TrialRecord.User.Modality = modeFLAG;
-
 % Virtual blocks (mglo_condition_selector) drive single-modality overrides.
 % Falls back to MonkeyLogic's own block when the selector is not running.
-if isfield(TrialRecord.User,'VirtualBlock')
+% Deliberately NOT written back to TrialRecord.User.VirtualBlock: only the
+% selector may set that field. Writing it here made it look as if the
+% selector were running, so from trial 2 on XBlock froze at trial 1's value
+% and the legacy branch below could never be reached.
+hasVirtualBlock = isfield(TrialRecord.User,'VirtualBlock');
+if hasVirtualBlock
     XBlock = TrialRecord.User.VirtualBlock;
 else
     XBlock = TrialRecord.CurrentBlock;
 end
-% Persist every trial so user plots, barcode and offline analysis always see
-% it, even when the condition selector is not running (then it is just the
-% MonkeyLogic block). The selector overwrites it again next trial.
-TrialRecord.User.VirtualBlock = XBlock;
 
 switch modeFLAG
     case "MULTISENSORY"
@@ -432,12 +427,12 @@ switch modeFLAG
         AUDITORY = true;
 end
 
-if SINGLE_MODALITY_BLOCKS && isfield(TrialRecord.User,'VirtualBlock')
+if SINGLE_MODALITY_BLOCKS && hasVirtualBlock
     % Unimodal virtual blocks (5,6 visual / 7,8 auditory) already omit the
     % other modality on every presentation via 'O', so this only forces the
     % MODE mask to match the schedule. Multisensory + omission blocks (1-4)
     % stay MULTISENSORY so the O-deviants can show.
-    vb = TrialRecord.User.VirtualBlock;
+    vb = XBlock;
     if vb == 5 || vb == 6
         VISUAL = true; AUDITORY = false; MULTISENSORY = false;
     elseif vb == 7 || vb == 8
@@ -457,6 +452,18 @@ elseif SINGLE_MODALITY_BLOCKS
         VISUAL = false; AUDITORY = false; MULTISENSORY = true;
     end
 end
+
+% The modality mask actually applied this trial (after the block override
+% above), not merely the MODE menu selection. Saved as the Modality bhv
+% variable at the end of the trial.
+if VISUAL
+    TrialRecord.User.Modality = 'VISUAL';
+elseif AUDITORY
+    TrialRecord.User.Modality = 'AUDITORY';
+else
+    TrialRecord.User.Modality = 'MULTISENSORY';
+end
+TrialRecord.User.ActiveMode = ACTIVE; % read by userplot.m to pick the live plot
 
 % Rig TaskObjects: 1 fix, 2/4/6 snd, 3/5/7 mov. Objects always exist in the
 % conditions file; an 'O' in the label drops that object from the scene.
@@ -766,7 +773,9 @@ end
 
 %%%%%%% BEGIN WRITING TASK %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-SoundVolume(autoContrastAud);
+% Clamped: AUD_STIM_GUIDE > 1 is allowed by the ramp above, but SoundVolume
+% throws on anything outside [0, 1].
+SoundVolume(min(max(autoContrastAud, 0), 1));
 error_type = 0;
 stims_observed = 0;
 startTime = tic();
@@ -787,13 +796,25 @@ if ~wth1.Success
     % idle(0) removed for speed
 end
 
+intanTriggerSent = 0;
 if 0==error_type %S1
+    % Trigger flag for INTAN. Uses the legacy Data Acquisition Toolbox
+    % interface (digitalio/addline/putvalue), which newer MATLAB releases no
+    % longer ship. A failure must not stop the trial, but it must not be
+    % silent either: warn once per session and record the outcome per trial
+    % (IntanTrigger bhv variable) so unsynced trials can be found offline.
     try
-        do = digitalio('nidaq','Dev1'); % Trigger flag for INTAN
+        do = digitalio('nidaq','Dev1');
         addline(do,1,2,'out');
         putvalue(do,1);
         putvalue(do,0);
-    catch
+        intanTriggerSent = 1;
+    catch ME
+        if ~isfield(TrialRecord.User,'IntanWarned') || ~TrialRecord.User.IntanWarned
+            TrialRecord.User.IntanWarned = true;
+            warning('mGLO:intanTrigger', 'INTAN trigger failed: %s', ME.message);
+            user_text('WARNING: INTAN trigger failed -- recording is NOT synced.');
+        end
     end
     run_scene(stim_1_scene,101);
     stims_observed = stims_observed + 1;
@@ -832,11 +853,19 @@ if 0==error_type %Delay 2
     end
 end
 
-% Boost oddball audio to full volume on the deviant presentation only.
-if TrialRecord.User.ConditionType(TrialRecord.CurrentTrialNumber) == 1
+% Auditory guide: while AUD_STIM_GUIDE < 1, presentations 1-2 play at the
+% reduced autoContrastAud volume and an AUDITORY deviant on presentation 3
+% plays at full volume -- the loudness step is the training cue, the audio
+% counterpart of the visual guide above (which likewise only applies when
+% the movie itself deviates). Only boost when the third sound is present AND
+% differs from the standard; boosting on every deviant trial made standard
+% tones on visual/omission deviants louder, so loudness alone gave the
+% answer away.
+isAudDeviantSound = 'O' ~= CCI(6) && CCI(6) ~= CCI(2);
+if isAudDeviantSound
     SoundVolume(1.0);
 else
-    SoundVolume(autoContrastAud);
+    SoundVolume(min(max(autoContrastAud, 0), 1));
 end
 
 if 0==error_type %S3 (deviant slot)
@@ -862,6 +891,10 @@ if ACTIVE
     if 0==error_type
         run_scene(choice_scene,109);
         if ~choice1.Success
+            % Outcome pair "50, <trialerror>" like every other outcome
+            % above. The 9 here is the trialerror code, framed by the 50
+            % before it; it is not MonkeyLogic's start-trial code, and
+            % decoders must read it as the value following 50.
             error_type = 9;
             eventmarker(50);
             eventmarker(9);
@@ -961,7 +994,8 @@ if ~strcmp(TOKENS{end}, 'UNTOKENIZED')
 
             try
                 if JuicePumpCnt > 1
-                    % OPTIMIZATION: nonblocking, shorter pause
+                    % One pulse per token step of the cash-out animation;
+                    % the last pulse is left for the residue loop below.
                     goodmonkey(PUMP_DURATION, 'juiceline',7, 'numreward', 1, 'pausetime', 80, 'eventmarker',40);
                     JuicePumpCnt = JuicePumpCnt - 1;
                 end
@@ -991,7 +1025,8 @@ if ~strcmp(TOKENS{end}, 'UNTOKENIZED')
 
     elseif 6==error_type
 
-        % Logic for decreasing tokens kept as is (just animation delays)
+        % Incorrect: tokens were already deducted above and the timeout
+        % penalty runs after the token display is rebuilt below. No reward.
 
     else
         user_text("Trial break.");
@@ -1003,7 +1038,6 @@ else
 
     if error_type == 0
         try
-            % OPTIMIZATION: nonblocking
             goodmonkey(PUMP_DURATION, 'juiceline',7, 'numreward', NUM_REWARD_BASELINE, 'pausetime', 120, 'eventmarker',40);
         catch
             user_text("Juicer problem; check juice pump power source or wires");
@@ -1014,8 +1048,9 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%% END TOKENS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Answered-trial tallies (correct OR incorrect choice), not correct-only.
 if error_type == 0 || error_type == 6
-    TrialRecord.User.CorrectCount = TrialRecord.User.CorrectCount + 1;
+    TrialRecord.User.AnsweredCount = TrialRecord.User.AnsweredCount + 1;
     if isStandard
         TrialRecord.User.NumberStandards = TrialRecord.User.NumberStandards + 1;
     elseif isDoubleOddballTrial
@@ -1147,6 +1182,11 @@ bhv_variable('DevOri', devOri);
 bhv_variable('StdFreq', stdFreq);
 bhv_variable('DevFreq', devFreq);
 bhv_variable('TokenImgScale', tis);
+% Cumulative manual ('r' hotkey) rewards so far, including this trial's.
+bhv_variable('ManReward', TrialRecord.User.ManReward);
+% 1 = INTAN sync pulse sent before stimulus 1 this trial, 0 = not sent
+% (trial ended before stimulus 1, or the DAQ call failed).
+bhv_variable('IntanTrigger', intanTriggerSent);
 
 numCorrectString = append('Number of Correct Trials within Block: ', num2str(TrialRecord.User.numCorrectWithinBlock));
 user_text(numCorrectString);
@@ -1227,7 +1267,7 @@ eventmarker(2020);
 eventmarker(1);
 
 %Information about the rest of the stimuli
-stim_info = TrialRecord.CurrentConditionStimulusInfo;
+ORI_NOT_SHOWN = 999; % 2008 value when no movie was shown on a presentation
 if stims_observed > 0
     for k = 1:stims_observed
         % mGLO interleaves one sound and one movie per presentation, so
@@ -1267,10 +1307,15 @@ if stims_observed > 0
         eventmarker(2007);
         eventmarker(SIZE*100);
 
-        %Orientation is a bit different depending on the stimulus
+        %Orientation is a bit different depending on the stimulus.
+        % ORI_NOT_SHOWN (999) = no movie on this presentation: an 'O' in the
+        % label, or the movie masked by the AUDITORY modality. It replaces
+        % the old -1 (event codes must be non-negative) and the old TaskObject
+        % path's habit of reporting A/B for movies that were never shown.
         eventmarker(2008);
+        visLetter = CCI(2*k-1);
         if useProceduralStim
-            % Actual grating angle this presentation (-1 = no movie shown).
+            % Actual grating angle this presentation.
             if k < 3
                 o = stdOri;
                 shown = showVisStd;
@@ -1278,20 +1323,18 @@ if stims_observed > 0
                 o = devOri;
                 shown = showVisDev;
             end
-            if shown
-                eventmarker(round(o));
-            else
-                eventmarker(-1);
-            end
         else
-            stim_name = cell2mat(stim_info{ii}.Info.Label);
-            % Deviants use their own asset (A4.avi / B4.avi), so match on the
-            % letter rather than the whole filename.
-            if strncmp(stim_name,'MOV: A',6) %Stim A
-                eventmarker(A_DEGREE);
-            else %Stim B
-                eventmarker(B_DEGREE);
+            shown = ~AUDITORY && 'O' ~= visLetter;
+            if 'A' == visLetter
+                o = A_DEGREE;
+            else
+                o = B_DEGREE;
             end
+        end
+        if shown
+            eventmarker(mod(round(o), 360));
+        else
+            eventmarker(ORI_NOT_SHOWN);
         end
 
         %Phase

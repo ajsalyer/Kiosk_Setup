@@ -11,16 +11,24 @@
 %FILENAME, what to name your video file, example: 'A.avi'. Make sure to use
 %quotation marks for the string, also make sure to include the .avi
 
-function create_drifting_sine_grating_simple(ROTATION,FILENAME, CONTRAST, SIZE)
+%CONTRAST_REDUCTION, 0.0 - 0.3: how far the grating's peaks are pulled in
+%from the default 0.2 - 0.8 range towards mid-grey. It REDUCES contrast:
+%0 is full contrast (0.2 - 0.8), 0.15 is half (0.35 - 0.65), 0.3 is a flat
+%grey field. Values above 0.3 would invert the grating, so they are refused.
+
+function create_drifting_sine_grating_simple(ROTATION,FILENAME, CONTRAST_REDUCTION, SIZE)
     %create_drifting_sine_grating(800,1,0,0.1,135,3,1.0,60,"A.avi")
     if ~exist("SIZE", "var")
         SIZE = 400;
     end
-    if ~exist("CONTRAST", "var")
-        CONTRAST = 0.0;
+    if ~exist("CONTRAST_REDUCTION", "var")
+        CONTRAST_REDUCTION = 0.0;
     end
-    MAX_COLOR = .80 - CONTRAST;
-    MIN_COLOR = .20 + CONTRAST;
+    if CONTRAST_REDUCTION < 0 || CONTRAST_REDUCTION > 0.3
+        error('CONTRAST_REDUCTION must be between 0 (full contrast) and 0.3 (flat grey); got %g.', CONTRAST_REDUCTION);
+    end
+    MAX_COLOR = .80 - CONTRAST_REDUCTION;
+    MIN_COLOR = .20 + CONTRAST_REDUCTION;
     SPATIAL_FREQUENCY = 0.2;
     HERTZ = 3;
     DURATION = 0.6;

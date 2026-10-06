@@ -1,6 +1,6 @@
 %remake_trial_order  Rebuild today's trial order after changing the ratios.
 %
-%The day's schedule is built ONCE and cached in trial_orders\, so editing
+%The day's schedule is built ONCE and cached in trial_orders/, so editing
 %BLOCK_TRIALS, HAB_TRIALS, PACKETS or RATIO in make_trial_order.m has no
 %effect until the cached file is deleted. Run this after any such change.
 %
@@ -15,12 +15,12 @@
 %WARNING: this discards any progress recorded in today's order file. Do not
 %run it partway through a recording session.
 %
-%NOTE: this is not a reshuffle. make_trial_order seeds from floor(now), which
-%is constant all day, so rebuilding without editing anything regenerates the
-%identical schedule. That is what lets a crashed session resume the same
+%NOTE: this is not a reshuffle. make_trial_order seeds from the day number,
+%which is constant all day, so rebuilding without editing anything
+%regenerates the identical schedule. That is what lets a crashed session resume the same
 %order; it also means you cannot use this to get a different randomisation.
 
-order_filename = append('trial_orders\','trial_order_',string(datetime("today",'Format','yyyyMMdd')),'.mat');
+[order_filename, order_day] = mglo_order_file();
 
 if isfile(order_filename)
     old = load(order_filename,'completed');
@@ -34,4 +34,4 @@ if isfile(order_filename)
     disp('deleted the cached order');
 end
 
-make_trial_order
+make_trial_order(order_filename, order_day);

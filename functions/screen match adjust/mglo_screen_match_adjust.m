@@ -43,6 +43,8 @@ function S = mglo_screen_match_adjust(DEG_PER_REL, Screen, overrides)
 %
 %   See also mGLO, mGLO-rig.
 
+persistent aspectWarned   % aspect-mismatch warning shown (see below)
+
 if nargin < 1 || isempty(DEG_PER_REL), DEG_PER_REL = 15; end
 if nargin < 2, Screen = []; end
 if nargin < 3, overrides = struct(); end
@@ -60,6 +62,12 @@ S.TOKEN_IMG_MAXH_REL = 0.15;
 %--- Declared panel, used only when no live screen is supplied ------------
 % These are a fallback, not the source of truth. A running task passes
 % Screen and the measured values below replace the resolution and PPD.
+%
+% CHECK THESE AGAINST THE REAL PANEL. 22 x 15 cm is a 1.47:1 panel but
+% 1920 x 1080 is 16:9 (1.78:1), so they cannot both be right: a 16:9 panel
+% 15 cm tall is 26.7 cm wide, and one 22 cm wide is 12.4 cm tall. Only
+% SCREEN_HEIGHT feeds PX_PER_DEG, so a wrong height scales every stimulus.
+% A warning is raised below while the declared size and resolution disagree.
 S.CONTRAST           = 0.8;
 S.DONUT_SIZE         = 0;     % visual degrees
 S.SCREEN_HEIGHT      = 15;    % centimeters
@@ -133,6 +141,22 @@ else
                    (2*atand((S.SCREEN_HEIGHT/2)/S.DISTANCE_TO_SCREEN));
     if S.Measured
         S.Measured = false;   % an override was used instead
+    end
+
+    % The declared panel is in use, so its physical and pixel aspect ratios
+    % must agree, or horizontal and vertical pixels-per-degree differ and
+    % the height-derived PX_PER_DEG is suspect. Warned once per MATLAB
+    % session, since this runs every trial.
+    physAspect = S.SCREEN_WIDTH / S.SCREEN_HEIGHT;
+    pixAspect  = S.SCREEN_RES_WIDTH / S.SCREEN_RES_HEIGHT;
+    if abs(physAspect/pixAspect - 1) > 0.05 && isempty(aspectWarned)
+        aspectWarned = true;
+        warning('mglo_screen_match_adjust:aspectMismatch', ...
+            ['Declared panel %g x %g cm (%.2f:1) does not match %d x %d px ' ...
+             '(%.2f:1). Measure the subject screen and correct SCREEN_WIDTH / ' ...
+             'SCREEN_HEIGHT in mglo_screen_match_adjust.m.'], ...
+            S.SCREEN_WIDTH, S.SCREEN_HEIGHT, physAspect, ...
+            S.SCREEN_RES_WIDTH, S.SCREEN_RES_HEIGHT, pixAspect);
     end
 end
 

@@ -1,42 +1,53 @@
 %pumpCalculator  Reward-pump calibration from recorded mGLO sessions.
 %
-%   Reads the .bhv2 sessions at the task root -- where MonkeyLogic writes
-%   them -- pairs each one with a hand-measured row in MANUAL below, and
-%   plots delivered fluid against the reward duration configured for that
-%   session.
+%   Reads the .bhv2 sessions from the task root -- where MonkeyLogic writes
+%   them -- AND from "data archive/", where they are moved afterwards, pairs
+%   each one with a hand-measured row in MANUAL below, and plots fluid
+%   delivered per correct trial against the reward duration configured for
+%   that session.
 %
 %   MANUAL holds the bench measurements that are not in the data file --
-%   one row per session, [trials, amount], in the same order dir() returns
-%   the files (which is alphabetical, so the YYMMDD_ filename prefix puts
-%   them oldest-first). Add a row each time you measure a new session.
+%   one row per session, [trials, amount], in file-name order across both
+%   folders (the YYMMDD_ prefix puts them oldest-first, and moving a file
+%   into the archive does not change its place). Add a row each time you
+%   measure a new session.
 %
 %   Sessions that will not load are skipped with a warning rather than
 %   killing the run. VariableChanges is recorded per trial, so the settings
 %   below are read from the first trial and a warning is raised if one of
 %   them was edited mid-session.
 %
-%   Edit DATA_DIR or PATTERN to read from somewhere else.
+%   Edit DATA_DIRS or PATTERN to read from somewhere else.
 
 %--- Configuration ---------------------------------------------------------
-DATA_DIR = '';               % '' = the task root, where MonkeyLogic writes
-PATTERN  = '*mGLO*.bhv2';    % session files to calibrate against
+DATA_DIRS = {};              % {} = task root + "data archive"
+PATTERN   = '*mGLO*.bhv2';   % session files to calibrate against
 
 % Hand-measured per session: [trials, amount]
 MANUAL = [332 210; 497 350; 477 320; 381 270; 459 280];
 %MANUAL = [310 310; 290 315; 310 336; 230 233; 340 387; 290 306; 440 523];
 
 %--- Locate the sessions ---------------------------------------------------
-if isempty(DATA_DIR)
+if isempty(DATA_DIRS)
     % This script lives at <repo>/analysis/all analysis/, so up three = the
-    % task root, which is where MonkeyLogic leaves its recordings.
-    DATA_DIR = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    % task root, which is where MonkeyLogic leaves its recordings; they are
+    % then moved into "data archive" (README, mglo_collect_data).
+    taskRoot  = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    DATA_DIRS = {taskRoot, fullfile(taskRoot, 'data archive')};
 end
+DATA_DIR = strjoin(DATA_DIRS, ' + ');   % for messages
 
-files = dir(fullfile(DATA_DIR, PATTERN));
+files = [];
+for d = 1:numel(DATA_DIRS)
+    files = [files; dir(fullfile(DATA_DIRS{d}, PATTERN))]; %#ok<AGROW>
+end
 if isempty(files)
     error('pumpCalculator:noData', ...
           'No files matching "%s" in %s', PATTERN, DATA_DIR);
 end
+% One ordering regardless of which folder a file currently sits in.
+[~, order] = sort({files.name});
+files = files(order);
 
 % One bench measurement per session, or the pairing is meaningless.
 nFiles = numel(files);
@@ -108,11 +119,14 @@ pumpCalc = pumpCalc(loaded, :);
 % fluid_per_trial = avg_flow_rate * current_pump_duration * current_num_pumps * 1e-3;
 % total_fluid = numCorrect * fluid_per_trial;
 
-mls_per_correct = pumpCalc(:, 2) ./ pumpCalc(:, 3);
+% MANUAL is [trials, amount] in columns 2:3, so amount / trials.
+mls_per_correct = pumpCalc(:, 3) ./ pumpCalc(:, 2);
 
+% Sorted by duration so the line does not zig-zag between sessions.
+[dur, order] = sort(pumpCalc(:, 4));
 fh = figure('Name', 'Pump Calibration');
-plot(pumpCalc(:, 4), mls_per_correct)
-ylabel('mLs per Correct'); xlabel('Reward Duration')
+plot(dur, mls_per_correct(order), 'o-')
+ylabel('mLs per Correct'); xlabel('Reward Duration (ms)')
 mgloSaveFigure(fh, 'Pump Calibration');
 
 

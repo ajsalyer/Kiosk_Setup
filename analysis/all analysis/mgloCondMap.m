@@ -1,9 +1,8 @@
 function M = mgloCondMap()
 %mgloCondMap  Single source of truth for mGLO condition metadata.
 %
-%   M = mgloCondMap() describes the 26 conditions shared by
-%   mGLO_conditions_1block.txt and mGLO_conditions_main.txt (identical
-%   stimulus sets; either file works with mGLO.m in ACTIVE and passive mode).
+%   M = mgloCondMap() describes the 26 conditions of
+%   mGLO_conditions_main.txt (used by mGLO.m in ACTIVE and passive mode).
 %
 %   samp labels are 6-char 'VAVAVA': one [visual audio] letter pair per
 %   presentation, three presentations, the third able to deviate. 'O' in

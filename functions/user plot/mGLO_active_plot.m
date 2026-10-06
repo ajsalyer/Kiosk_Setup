@@ -112,6 +112,8 @@ if isfield(TrialRecord.User,'VirtualBlock')
     vb = TrialRecord.User.VirtualBlock;
     if isscalar(vb) && vb >= 1 && vb <= 8, blk = BLOCK_NAMES{vb}; ...
     elseif isscalar(vb), blk = sprintf('block %d',vb); end
+else
+    blk = sprintf('ML block %d',TrialRecord.CurrentBlock); % selector not running
 end
 prog = '';
 if isfield(TrialRecord.User,'TrialsCompleted') && isfield(TrialRecord.User,'TotalScheduled')
@@ -120,7 +122,9 @@ if isfield(TrialRecord.User,'TrialsCompleted') && isfield(TrialRecord.User,'Tota
     prog = sprintf('  |  %d/%d scheduled (%.0f%%)',done,total,100*done/max(total,1));
 end
 nChoice = nEng;
-if isfield(TrialRecord.User,'ChoiceLog')
+if isfield(TrialRecord.User,'ChoiceLog') && n <= numel(TrialRecord.User.ChoiceLog)
+    % ChoiceLog can be shorter than the trial list when a trial was aborted
+    % (e.g. the 'p' hotkey) before mGLO.m appended to it; then keep nEng.
     cl = TrialRecord.User.ChoiceLog(:)';
     nChoice = sum(engaged & cl(1:n) == 2);
 end

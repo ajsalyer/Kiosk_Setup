@@ -7,13 +7,27 @@ function output_condition = mglo_condition_selector(TrialRecord)
 %
 %Progress is counted in CORRECT trials only. An error does not advance the
 %pointer -- instead the failed condition is pushed a few trials down the
-%queue so it still gets run.
+%queue so it still gets run. The push never leaves the current SEGMENT (the
+%block's habituation run, or one packet), so a retry cannot drag a deviant
+%into habituation or move trials between packets: every packet keeps its
+%exact composition however many errors there are.
 
-order_filename = append('trial_orders\','trial_order_',string(datetime("today",'Format','yyyyMMdd')),'.mat');
+[order_filename, order_day] = mglo_order_file(TrialRecord);
 if isfile(order_filename)
-    load(order_filename,'trials_today','completed','blocks_today')
+    S = load(order_filename);
+    trials_today = S.trials_today;
+    completed    = S.completed;
+    blocks_today = S.blocks_today;
+    if isfield(S,'segments_today')
+        segments_today = S.segments_today;
+    else
+        % Order file written before segments were recorded: fall back to
+        % the old behaviour, bounded by the virtual block only.
+        segments_today = blocks_today;
+    end
 else
-    make_trial_order
+    [trials_today, blocks_today, completed, segments_today] = ...
+        make_trial_order(order_filename, order_day);
 end
 
 %Figure out if the previous trial was correct or not
@@ -43,18 +57,19 @@ idx = current_correct_count + 1;
 
 if previous_error ~= 0
     %Throw the error 5 trials down, but never past the end of the current
-    %virtual block. oGLO could hardcode 40 here because its blocks were a
-    %uniform length; mGLO's are 20 and 100, so read the boundary instead.
-    this_block = blocks_today(idx);
-    numTrltilBlockEnd = find(blocks_today(idx:end) ~= this_block, 1) - 1;
-    if isempty(numTrltilBlockEnd)
-        numTrltilBlockEnd = numel(blocks_today) - idx + 1;
+    %segment (habituation run or packet). oGLO could hardcode 40 here
+    %because its blocks were a uniform length; mGLO's segments are 10 to 28
+    %trials, so read the boundary instead.
+    this_seg = segments_today(idx);
+    numTrltilSegEnd = find(segments_today(idx:end) ~= this_seg, 1) - 1;
+    if isempty(numTrltilSegEnd)
+        numTrltilSegEnd = numel(segments_today) - idx + 1;
     end
 
-    if numTrltilBlockEnd > 5
+    if numTrltilSegEnd > 5
         trials_today(idx:idx+4) = circshift(trials_today(idx:idx+4),4); %throw error 5 trials down
-    elseif numTrltilBlockEnd > 1
-        trials_today(idx:idx+numTrltilBlockEnd-1) = circshift(trials_today(idx:idx+numTrltilBlockEnd-1),numTrltilBlockEnd-1);
+    elseif numTrltilSegEnd > 1
+        trials_today(idx:idx+numTrltilSegEnd-1) = circshift(trials_today(idx:idx+numTrltilSegEnd-1),numTrltilSegEnd-1);
     end
 end
 
@@ -67,6 +82,7 @@ TrialRecord.User.VirtualBlock    = blocks_today(idx);
 TrialRecord.User.TrialsCompleted = current_correct_count;
 TrialRecord.User.TotalScheduled  = numel(trials_today);
 
-save(order_filename,'trials_today','completed','blocks_today')
+totalNumTrial = numel(trials_today);
+save(order_filename,'trials_today','completed','blocks_today','segments_today','totalNumTrial')
 
 end
