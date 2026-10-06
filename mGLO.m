@@ -230,7 +230,11 @@ if TrialRecord.CurrentTrialNumber == 1
     user_text(sprintf('Screen %dx%d px, %.1f px/deg (%s)', SCR.SCREEN_RES_WIDTH, ...
         SCR.SCREEN_RES_HEIGHT, SCR.PX_PER_DEG, geomSource));
 end
-if SCR.LayoutFitted
+% Reported once, and again only if the fit changes (e.g. DEG_PER_REL edited
+% mid-session), so it does not fill the message box every trial.
+if SCR.LayoutFitted && (~isfield(TrialRecord.User,'LayoutFitShown') || ...
+        TrialRecord.User.LayoutFitShown ~= SCR.REL2DEG)
+    TrialRecord.User.LayoutFitShown = SCR.REL2DEG;
     user_text(sprintf('Layout fitted to screen: +/-%.1f deg (DEG_PER_REL %g)', SCR.REL2DEG, DEG_PER_REL));
 end
 
