@@ -24,6 +24,7 @@ function volume = SoundVolume(volume)
 %     2009-Oct-15: First version posted on MathWorks File Exchange: <a href="http://www.mathworks.com/matlabcentral/fileexchange/authors/27420">http://www.mathworks.com/matlabcentral/fileexchange/authors/27420</a>
 %     2009-Nov-03: Fixed some edge-cases - D. Nguyen
 %     2014-May-09: Fix for Windows 7
+%     2026-Oct-06: mGLO -- cache the volume control instead of opening a new Line per call
 %
 %   See also:
 %     <a href="http://UndocumentedMatlab.com">http://UndocumentedMatlab.com</a>, <a href="http://java.sun.com/docs/books/tutorial/sound">http://java.sun.com/docs/books/tutorial/sound</a>
@@ -33,6 +34,8 @@ function volume = SoundVolume(volume)
 
 % Programmed and Copyright by Yair M. Altman: altmany(at)gmail.com
 % $Revision: 1.3 $  $Date: 2014/05/09 18:43:38 $
+
+    persistent cachedCtrl   % speaker volume control, see below
 
     % Check for available Java/AWT (not sure if Swing is really needed so let's just check AWT)
     if ~usejava('awt')
@@ -44,10 +47,41 @@ function volume = SoundVolume(volume)
         error('YMA:SoundVolume:badVolume','Volume value must be a scalar number between 0.0 and 1.0')
     end
 
+    % The speaker port's volume control is looked up and its Line opened ONCE
+    % and then reused. mGLO calls this twice per trial, and the
+    % original opened a new Line on every call without ever closing it, so
+    % open lines piled up over a session. If the cached control stops
+    % working (e.g. the audio device was replugged), it is looked up again.
+    if isempty(cachedCtrl)
+        cachedCtrl = findVolumeControl();
+    end
+
+    % Get or set the volume value according to the user request
+    try
+        oldValue = cachedCtrl.getValue;
+        if nargin
+            cachedCtrl.setValue(volume);
+        end
+    catch
+        cachedCtrl = findVolumeControl();
+        oldValue = cachedCtrl.getValue;
+        if nargin
+            cachedCtrl.setValue(volume);
+        end
+    end
+    if nargout
+        volume = oldValue;
+    end
+end  % SoundVolume
+
+
+function ctrl = findVolumeControl()
+%findVolumeControl  Open the speaker port and return its volume control.
+    import javax.sound.sampled.*
+
     % Loop over all the system's MixerInfo objects to find the speaker port
     % Note: we should have used line=AudioSystem.getLine(Port.Info.SPEAKER) directly, as in http://forums.sun.com/thread.jspa?messageID=10736264#10736264
     % ^^^^  but unfortunately Matlab prevents using Java Interfaces and/or classnames containing a period
-    import javax.sound.sampled.*
     mixerInfos = AudioSystem.getMixerInfo;
     foundFlag = 0;
     for mixerIdx = 1 : length(mixerInfos)
@@ -95,16 +129,7 @@ function volume = SoundVolume(volume)
         end
     end
     if ~foundFlag
+        line.close();
         error('YMA:SoundVolume:noVolumeControl','Speaker volume control not found');
     end
-    
-    % Get or set the volume value according to the user request
-    oldValue = ctrl.getValue;
-    if nargin
-        ctrl.setValue(volume);
-    end
-    if nargout
-        volume = oldValue;
-    end
-    
-%end  % SoundVolume
+end  % findVolumeControl

@@ -4,7 +4,7 @@ function R = mgloPlotPerformanceByCondition(bhv, CONST, opts)
 %   R = mgloPlotPerformanceByCondition(bhv, CONST) groups trials with
 %   mgloCondMap (26 conditions -> 4 deviance types x 2 contexts) instead of
 %   the old assumption of -R/-L condition pairs or 4-char labels. Works with
-%   both mGLO_conditions_1block.txt and mGLO_conditions_main.txt.
+%   mGLO_conditions_main.txt.
 %
 %   Figure 1: grouped bars (type x context) with engaged-trial counts --
 %   the same view as the live mGLO_userplot, for offline checking.

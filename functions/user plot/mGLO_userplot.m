@@ -19,7 +19,7 @@ BLOCK_NAMES = {'multisensory A','multisensory B','omission A','omission B', ...
                'visual A','visual B','auditory X','auditory Y'};
 
 % condition -> type / context, over the 26 conditions of
-% mGLO_conditions_1block.txt / mGLO_conditions_main.txt (identical sets).
+% mGLO_conditions_main.txt.
 % Type is which modality deviates on the third presentation, counting an
 % omission as a deviation in that modality:
 %   AXAXAO and OXOXOO are auditory, AXAXOX and AOAOOO are visual,
@@ -106,7 +106,10 @@ hold(ax,'off');
 blk = '';
 if isfield(TrialRecord.User,'VirtualBlock')
     vb = TrialRecord.User.VirtualBlock;
-    if vb >= 1 && vb <= 8, blk = BLOCK_NAMES{vb}; else, blk = sprintf('block %d',vb); end
+    if isscalar(vb) && vb >= 1 && vb <= 8, blk = BLOCK_NAMES{vb}; ...
+    elseif isscalar(vb), blk = sprintf('block %d',vb); end
+else
+    blk = sprintf('ML block %d',TrialRecord.CurrentBlock); % selector not running
 end
 prog = '';
 if isfield(TrialRecord.User,'TrialsCompleted') && isfield(TrialRecord.User,'TotalScheduled')

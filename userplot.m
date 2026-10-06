@@ -18,9 +18,15 @@ function userplot(TrialRecord)
 %argument (run_trial.m:308), and draws into an axes it has already selected
 %-- so mGLO_userplot must keep using gca and must never call clf.
 %
-%To use the ACTIVE-task variant instead, change the call below to
-%mGLO_active_plot(TrialRecord).
+%The variant follows the task's ACTIVE setting, which mGLO.m publishes as
+%TrialRecord.User.ActiveMode every trial: mGLO_active_plot for ACTIVE
+%sessions (it also computes the sensitivity index mGLO.m saves as the
+%Sensitivity bhv variable), mGLO_userplot for passive fixation sessions.
 
-mGLO_userplot(TrialRecord);
+if isfield(TrialRecord.User,'ActiveMode') && TrialRecord.User.ActiveMode
+    mGLO_active_plot(TrialRecord);
+else
+    mGLO_userplot(TrialRecord);
+end
 
 end

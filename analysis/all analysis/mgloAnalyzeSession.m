@@ -19,22 +19,25 @@ function R = mgloAnalyzeSession(bhv, opts)
 %     guideThresh   0.99   GuideScale threshold marking guided trials
 %     save          true   write every figure to disk as a .jpg
 %     savedir       ''     figure folder ('' = <repo>/analysis/figures)
-%     tag           ''     filename suffix ('' = session date, so repeat
-%                          runs on different sessions do not overwrite)
+%     tag           ''     filename suffix ('' = the session's start time,
+%                          yymmdd_HHMMSS, so sessions never overwrite each
+%                          other, even two on the same day)
 %     saveResults   true   write R to <repo>/analysis/results as a .mat and
 %                          append a summary row to sessions.csv
 %     resultsdir    ''     results folder ('' = <repo>/analysis/results)
 %     subject       ''     subject name, used in the results filename and
 %                          recorded in sessions.csv
 %
-%   Saved .jpg paths are collected in R.figures, saved result paths in
-%   R.results.
+%   The .jpg paths written by THIS run are collected in R.figures, saved
+%   result paths in R.results. R.sessionKey (yymmdd_HHMMSS of the first
+%   trial, see mgloSessionStart) identifies the session in sessions.csv, so
+%   re-analysing it -- by hand or automatically, under any tag -- replaces
+%   its row instead of adding a duplicate.
 %
-%   Works with sessions run under mGLO_conditions_1block.txt or
-%   mGLO_conditions_main.txt (identical 26-condition sets), in ACTIVE and
+%   Works with sessions run under mGLO_conditions_main.txt, in ACTIVE and
 %   passive mode. Example:
-%     bhv = mlBHVunifier('260921_mGLO', 'C:\data');
-%     R = mgloAnalyzeSession(bhv);
+%     bhv = mlconcatenate('260925_Joule_mGLO_conditions_main.bhv2');
+%     R = mgloAnalyzeSession(bhv, struct('subject', 'Joule'));
 
 if nargin < 2 || isempty(opts), opts = struct(); end
 defs = struct('plots', true, 'psychometric', false, 'signal', false, ...
@@ -57,16 +60,16 @@ CONST = mgloErrorConsts();
 R = struct();
 R.nTrials = numel(bhv.Trial);
 R.const = CONST;
-try
-    R.date = sprintf('%02d/%02d/%02d', bhv.TrialDateTime(end, 2:4));
-catch
-    R.date = '';
-end
+[~, R.sessionKey, R.date] = mgloSessionStart(bhv);   % date is mm/dd/yy
 
-% Default the figure-name suffix to the session date so successive sessions
-% do not overwrite each other's .jpg files.
+% Default the figure-name suffix to the session start time so successive
+% sessions -- including two on the same day -- do not overwrite each
+% other's .jpg files.
 tag = opts.tag;
-if isempty(tag), tag = strrep(R.date, '/', ''); end
+if isempty(tag), tag = R.sessionKey; end
+
+% Figures written from here on belong to this run (see R.figures below).
+runStart = now; %#ok<TNOW1>
 
 plotOpts = struct('plots', opts.plots, 'save', opts.save, ...
                   'savedir', opts.savedir, 'tag', tag);
@@ -86,13 +89,17 @@ if opts.goal
     R.goal = mgloPlotGoalGradient(bhv, CONST, plotOpts);
 end
 
-% Collect the .jpg files written this run (empty when saving is off).
+% Collect the .jpg files written this run (empty when saving is off). The
+% folder also holds every earlier session's figures and control screens, so
+% keep only files modified since this run started (2 s of slack for
+% filesystem timestamp resolution).
 R.figures = {};
 if opts.plots && opts.save
     if ~isempty(opts.savedir), figDir = opts.savedir;
     else, figDir = fullfile(analysisDir, 'figures'); end
     if isfolder(figDir)
         d = dir(fullfile(figDir, '*.jpg'));
+        d = d([d.datenum] >= runStart - 2/86400);
         R.figures = fullfile(figDir, {d.name});
     end
     fprintf('mgloAnalyzeSession: figures saved as .jpg in %s\n', figDir);
@@ -111,5 +118,6 @@ fprintf('mgloAnalyzeSession: %d trials, %d engaged, %d correct (%.1f%%).\n', ...
 
 % Persist last, so the saved struct contains the session totals above.
 R.results = mgloSaveResults(R, struct('save', opts.saveResults, ...
-    'resultsdir', opts.resultsdir, 'tag', tag, 'subject', opts.subject));
+    'resultsdir', opts.resultsdir, 'tag', tag, 'subject', opts.subject, ...
+    'key', R.sessionKey));
 end

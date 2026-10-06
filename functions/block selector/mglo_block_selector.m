@@ -11,16 +11,18 @@ function output_block = mglo_block_selector(TrialRecord)
 %   1  go to block 1        (first trial only)
 %
 %The real blocks are virtual and live in blocks_today inside the day's
-%trial_orders\*.mat. Every condition sits in MonkeyLogic block 1, exactly
+%trial_orders/*.mat. Every condition sits in MonkeyLogic block 1, exactly
 %like glo_omission.txt, so the condition selector is free to return any of
-%the 16. Translated from the oGLO version; pristine copy in
+%the 26. Translated from the oGLO version; pristine copy in
 %stuff_hamed_gaveme\.
 
-order_filename = append('trial_orders\','trial_order_',string(datetime("today",'Format','yyyyMMdd')),'.mat');
+[order_filename, order_day] = mglo_order_file(TrialRecord);
 if isfile(order_filename)
-    load(order_filename,'trials_today','completed')
+    S = load(order_filename,'trials_today','completed');
+    trials_today = S.trials_today;
+    completed    = S.completed;
 else
-    make_trial_order
+    [trials_today, ~, completed] = make_trial_order(order_filename, order_day);
 end
 
 current_correct_count = length(completed);

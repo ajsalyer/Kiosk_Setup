@@ -1,13 +1,26 @@
+function [trials_today, blocks_today, completed, segments_today] = make_trial_order(order_filename, order_day)
 %make_trial_order  Build the whole day's mGLO trial order up front.
 %
 %Translated from the oGLO/omission version (pristine copy in
 %stuff_hamed_gaveme\) to mGLO's 26 conditions. Same three-part design:
-%this script builds the schedule, mglo_condition_selector serves it, and
+%this function builds the schedule, mglo_condition_selector serves it, and
 %mglo_block_selector ends the session.
 %
+%   make_trial_order                       % today's file, see mglo_order_file
+%   make_trial_order(order_filename, order_day)
+%   [trials_today, blocks_today, completed, segments_today] = make_trial_order(...)
+%
+%Writes order_filename and returns what it saved. segments_today labels
+%every slot with the habituation run or packet it belongs to, so the
+%condition selector can keep error retries inside one segment.
+
+if nargin < 2 || isempty(order_filename) || isempty(order_day)
+    [order_filename, order_day] = mglo_order_file();
+end
+
 %get a unique rand seed for each recording day (which will also be
 %consistent if rerun on the same day if things crashed)
-today_seed = floor(now); %#ok<TNOW1>
+today_seed = order_day;
 rng(today_seed);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -64,7 +77,7 @@ PACKETS = [5 5 5 5 2 2 2 2];
 % presentations (AOAOAO, OXOXOX, ...).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% CONDITION MAP -- the 26 conditions of mGLO_conditions_1block.txt
+% CONDITION MAP -- the 26 conditions of mGLO_conditions_main.txt
 %   row = virtual block, column = trial type in the order RATIO lists them
 %
 % One condition per stimulus sequence. The active version had two of each,
@@ -86,9 +99,11 @@ COND = {  1,  2,  3,  4 ;   % 1 multisensory A
 
 NUM_BLOCKS = size(COND,1);
 
-completed    = [];
-trials_today = [];
-blocks_today = [];
+completed      = [];
+trials_today   = [];
+blocks_today   = [];
+segments_today = [];   % habituation run / packet id of every slot
+seg_no         = 0;
 
 % Block order. Blocks 1-4 run first in a random order, then blocks 5-8 in
 % their own random order. The second cycle replays each half backwards, so
@@ -97,14 +112,21 @@ first_half  = randperm(4);
 second_half = randperm(4) + 4;
 block_order = [first_half second_half fliplr(first_half) fliplr(second_half)];
 
-% One RNG seed per packet, unique but consistent within the day (+365 so it
-% cannot collide with tomorrow's block-order seed). The original derived the
-% index as b*p, which is NOT unique -- over b=1:8, p=1:5 that yields only 24
+% One RNG seed per packet, unique within the day AND across days, and
+% consistent if the day's order is rebuilt. The original derived the index
+% as b*p, which is NOT unique -- over b=1:8, p=1:5 that yields only 24
 % distinct values, so a dozen packets shared a seed and drew identical
-% deviant positions, while 16 allocated seeds went unused. A running counter
-% avoids that.
+% deviant positions. A later today_seed+365+k fixed that within a day, but
+% tomorrow's packet k then reused today's packet k+1 seed, so consecutive
+% days repeated the same deviant positions shifted by one packet. Scaling
+% the day by 1000 gives every day its own disjoint range of seeds, well
+% clear of the block-order seed (today_seed itself) and inside rng's
+% 0..2^32-1 limit.
 totalNumPacket = sum(PACKETS(block_order));
-rng_list  = today_seed + 365 + (1:totalNumPacket);
+if totalNumPacket >= 1000
+    error('make_trial_order: %d packets would overlap the next day''s seeds', totalNumPacket);
+end
+rng_list  = today_seed*1000 + (1:totalNumPacket);
 packet_no = 0;
 
 for b = block_order
@@ -138,6 +160,8 @@ for b = block_order
 
     % ---- habituation: standards only ---------------------------------
     hab = repmat(COND{b,1},1,nhab);
+    seg_no = seg_no + 1;
+    segs = repmat(seg_no,1,nhab);
 
     % ---- packets: each carries an exact share of every type ----------
     mixed = [];
@@ -150,18 +174,26 @@ for b = block_order
             packet = [packet repmat(COND{b,t},1,per_packet(t))]; %#ok<AGROW>
         end
         mixed = [mixed packet(randperm(numel(packet)))]; %#ok<AGROW>
+        seg_no = seg_no + 1;
+        segs = [segs repmat(seg_no,1,numel(packet))]; %#ok<AGROW>
     end
 
-    trials_today = [trials_today hab mixed];       %#ok<AGROW>
-    blocks_today = [blocks_today repmat(b,1,ntrial)]; %#ok<AGROW>
+    trials_today   = [trials_today hab mixed];       %#ok<AGROW>
+    blocks_today   = [blocks_today repmat(b,1,ntrial)]; %#ok<AGROW>
+    segments_today = [segments_today segs];         %#ok<AGROW>
 
 end
 
 totalNumTrial = numel(trials_today);
 
-if ~isfolder('trial_orders'), mkdir('trial_orders'); end
-order_filename = append('trial_orders\','trial_order_',string(datetime("today",'Format','yyyyMMdd')),'.mat');
-save(order_filename,'blocks_today','trials_today','completed','totalNumTrial');
+if numel(segments_today) ~= totalNumTrial
+    error('make_trial_order: segment labels (%d) do not cover the %d trials', ...
+        numel(segments_today), totalNumTrial);
+end
+
+order_dir = fileparts(order_filename);
+if ~isempty(order_dir) && ~isfolder(order_dir), mkdir(order_dir); end
+save(order_filename,'blocks_today','trials_today','completed','totalNumTrial','segments_today');
 disp(append('new trial order made (mglo) - ',num2str(totalNumTrial),' trials'));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

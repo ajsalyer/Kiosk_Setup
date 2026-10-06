@@ -1,7 +1,19 @@
-function file = mlBHVunifier(baseFilename, bhvPath)
+function file = mlBHVunifier(baseFilename, bhvPath, saveMat)
     % Inputs:
         % baseFilename -> the main file; e.g. 230816_Cajal_glo_omission
         % bhvPath -> the directory in which .bhv2 files are located.
+        % saveMat -> optional, default false. true also writes the merged
+        %            struct to <bhvPath>/<baseFilename>_unified.mat. (It used
+        %            to ALWAYS write <baseFilename>.mat into whatever folder
+        %            MATLAB happened to be in -- the task root, usually.)
+    %
+    % Output: one struct, one field per bhv field, trials in time order.
+    % TrialDateTime is N x 6 (one row per trial), as from mlconcatenate.
+
+    if nargin < 3 || isempty(saveMat)
+        saveMat = false;
+    end
+    baseFilename = char(baseFilename);
     
     % Handle optional input more robustly
     if nargin < 2 || isempty(bhvPath) || strcmp(bhvPath, " ")
@@ -56,22 +68,27 @@ function file = mlBHVunifier(baseFilename, bhvPath)
     
     cumulativeTrials = 0;
     cumulativeTime = 0;
+    orig = bhx;   % unshifted copies: offsets are computed from these only
     
     % Loop starts from 2 because the first file needs no offset
     for ik = 2:N
-        prevFile = bhx{ik-1};
-        currFile = bhx{ik};
+        prevFile = orig{ik-1};   % NOT bhx{ik-1}, which already carries the
+        currFile = bhx{ik};      % previous offset (double-counted from file 3)
         
         % Update Accumulators
         cumulativeTrials = cumulativeTrials + length(prevFile);
         
-        % Calculate time gap between end of previous and start of current
-        % Using etime handles day-rollovers (midnight) correctly.
+        % Calculate time gap between the last trial of the previous file and
+        % the first trial of the current one (TrialDateTime is each trial's
+        % start). Using etime handles day-rollovers (midnight) correctly.
         % Multiplied by 1000 to convert seconds to ms.
         timeGap = etime(currFile(1).TrialDateTime, prevFile(end).TrialDateTime) * 1000;
         
-        % Add the duration of previous file + the gap
-        cumulativeTime = cumulativeTime + prevFile(end).AbsoluteTrialStartTime + timeGap;
+        % Place the current file's first trial timeGap after the previous
+        % file's last trial, on the merged clock:
+        %   offset_k = offset_(k-1) + prevLast + gap - currFirst
+        cumulativeTime = cumulativeTime + prevFile(end).AbsoluteTrialStartTime ...
+                         + timeGap - currFile(1).AbsoluteTrialStartTime;
         
         % Apply offsets to current file 
         for jk = 1:length(currFile)
@@ -89,9 +106,17 @@ function file = mlBHVunifier(baseFilename, bhvPath)
     file = struct();
     field_names = fieldnames(bhvUni);
     for ik = 1:length(field_names)
-        % Using [ ] allows converting struct array to vector/matrix
-        file.(field_names{ik}) = [bhvUni.(field_names{ik})];
+        if strcmp(field_names{ik}, 'TrialDateTime')
+            % One [Y M D h m s] row per trial, like mlconcatenate. [ ] would
+            % run them together into a single 1 x 6N row.
+            file.TrialDateTime = vertcat(bhvUni.TrialDateTime);
+        else
+            % Using [ ] allows converting struct array to vector/matrix
+            file.(field_names{ik}) = [bhvUni.(field_names{ik})];
+        end
     end
     
-    save(baseFilename + ".mat", "file");
+    if saveMat
+        save(fullfile(bhvPath, [baseFilename '_unified.mat']), 'file');
+    end
 end

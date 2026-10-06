@@ -11,10 +11,11 @@ function mGLO_set_trial_count(cfgfile, n)
 %  ends the block as soon as it is reached -- see mltrialrecord.m:229, which
 %  sets BlockChange the moment CompletedTrialsInThisBlock hits it. With
 %  CountOnlyCorrectTrials on, that counts correct trials, exactly like our
-%  schedule does. The rig's saved value is 960, from the previous design, so
-%  a session would stop 368 trials short of the 1328 the schedule contains
-%  and the block-change path would fire in a state mglo_block_selector does
-%  not expect.
+%  schedule does. Any saved value below 1328 stops a session short of the
+%  schedule (the rig has carried 960 from the previous design, and lower
+%  test values since), and the block-change path then fires in a state
+%  mglo_block_selector does not expect. The table this prints shows what
+%  each subject's profile held before the change.
 %
 %  It cannot be fixed from the task code: TrialRecord's copy of the property
 %  is SetAccess = protected (mltrialrecord.m:43-48), so the timing file and
@@ -58,7 +59,7 @@ for i = 1:numel(f)
 
     % Only ever RAISE the cap. A profile already set higher than n was set
     % that way on purpose and is harmless -- mglo_block_selector ends the
-    % session at 1327 regardless. Lowering it would be a silent change to
+    % session after the schedule's last correct trial regardless. Lowering it would be a silent change to
     % somebody else's setting.
     old = v.NumberOfTrialsToRunInThisBlock;
     v.NumberOfTrialsToRunInThisBlock = max(old, n);
