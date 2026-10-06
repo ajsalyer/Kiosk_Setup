@@ -120,23 +120,36 @@ Setting it higher than 1328 is harmless — `mglo_block_selector` ends the
 session on its own once the schedule is exhausted. It must simply never be
 lower.
 
-**Display.** Stimulus sizes are computed from constants in
-`functions/screen match adjust/mglo_screen_match_adjust.m`, currently
-1920×1080 at 22×15 cm and 20 cm viewing distance. **Those two do not agree**:
-22×15 cm is 1.47:1 and 1920×1080 is 1.78:1, so at least one of them is
-wrong, and because `PX_PER_DEG` comes from the height, a wrong height
-mis-sizes every stimulus. Measure the subject screen and correct the
-constants; the function warns while they disagree. `DEG_PER_REL` (editable in
-the V-menu, default 15) sets the layout half-range in visual degrees — the
-subject screen must span at least that much, or the layout runs off the
-edges and everything looks zoomed in.
+**Display.** The same code runs on recording rigs and on training kiosks,
+so nothing about the screen is hard-coded. Every trial, `mGLO.m` hands
+MonkeyLogic's `Screen` and `MLConfig` to
+`functions/screen match adjust/mglo_screen_match_adjust.m`, which takes:
 
-MonkeyLogic needs true pixels. Windows display scaling must be **100%**, and
-`MATLAB.exe` must not carry a *high DPI override* compatibility flag —
-either one makes MATLAB misreport the screen and `PixelsPerDegree` comes out
-wrong. With both fixed, `mglo_screen_match_adjust` can take MonkeyLogic's
-measured screen instead of the constants above and fit any panel
-automatically; see the "Screen geometry" note in `mGLO.m`.
+- the **resolution** from `Screen.Xsize` / `Screen.Ysize` (the subject
+  screen as MonkeyLogic created it, in native pixels);
+- **pixels per degree** from `Screen.PixelsPerDegree`, the conversion
+  MonkeyLogic itself uses for every TaskObject and fixation window. It is
+  built from the adapter's native display mode, so Windows display scaling
+  does not distort it;
+- the **physical size and viewing distance** (barcode only) from the
+  *Diagonal size* and *Viewing distance* in that machine's MonkeyLogic main
+  menu.
+
+So the one thing to get right per machine is **the diagonal size and viewing
+distance in the MonkeyLogic menu**. The control screen prints the detected
+resolution and px/deg on the first trial, and each trial records
+`ScreenSizePx`, `PixelsPerDegree`, `LayoutDegPerRel` and `ScreenMeasured`.
+
+Stimulus sizes are in visual degrees (`DEG_PER_REL`, editable in the
+V-menu, default 15: the stimulus is half of it in diameter, times
+`VISSCALE`) and stay the same in degrees on every setup. The token row and
+choice ports are laid out over ±`DEG_PER_REL` degrees; on a screen that
+spans less than that, they are compressed to fit (the control screen says
+so) instead of running off the edges.
+
+Offline — no MonkeyLogic screen, e.g. previewing from the command window —
+the function falls back to a generic 1920×1080 preview panel and reports
+`Measured = false`.
 
 ---
 

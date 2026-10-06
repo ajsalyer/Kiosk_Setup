@@ -204,21 +204,35 @@ end
 % functions/screen match adjust/mglo_screen_match_adjust.m. Unpacked into
 % the same local names the rest of this file already uses.
 %
-% DELIBERATELY NOT passing MonkeyLogic's live Screen here. That function can
-% take it (trialholder_v2.m:9 puts Screen in scope) and will then size the
-% task to whatever panel is attached -- but only if the measurement is
-% trustworthy. On this machine it is not: Windows runs at 175% scaling and
-% MATLAB.exe additionally carries a HIGHDPIAWARE compatibility override, so
-% MATLAB sees the display 1.75^2 ~ 3.06x smaller than it is and
-% Screen.PixelsPerDegree comes back wrong. Adapting to a wrong measurement
-% is worse than a known-good constant, because it silently looks correct.
-%
-% To turn adaptation back on once the DPI problem is fixed, pass Screen:
-%     SCR = mglo_screen_match_adjust(DEG_PER_REL, Screen);
-% and confirm SCR.Measured is true and SCR.PX_PER_DEG is sane before
-% trusting a session's stimulus sizes.
-
-SCR = mglo_screen_match_adjust(DEG_PER_REL);
+% The geometry is DETECTED, not configured here, so the same file runs on a
+% rig, a training kiosk or a laptop: MonkeyLogic's Screen (resolution and
+% PixelsPerDegree) and MLConfig (diagonal size and viewing distance, as
+% entered in that machine's MonkeyLogic menu) are both in scope in a timing
+% file (trialholder_v2.m). PixelsPerDegree is the conversion MonkeyLogic
+% itself uses for every TaskObject and fixation window; it comes from the
+% adapter's native display mode, not MATLAB's DPI-scaled screen size, so
+% Windows display scaling does not distort it. If the screen spans fewer
+% degrees than the layout needs, the token row and choice ports are
+% compressed to fit; the stimulus keeps its size in degrees.
+if exist('Screen','var') && exist('MLConfig','var')
+    SCR = mglo_screen_match_adjust(DEG_PER_REL, Screen, [], MLConfig);
+elseif exist('Screen','var')
+    SCR = mglo_screen_match_adjust(DEG_PER_REL, Screen);
+else
+    SCR = mglo_screen_match_adjust(DEG_PER_REL);   % offline preview panel
+end
+if TrialRecord.CurrentTrialNumber == 1
+    if SCR.Measured
+        geomSource = 'measured by MonkeyLogic';
+    else
+        geomSource = 'NOT measured -- offline preview panel';
+    end
+    user_text(sprintf('Screen %dx%d px, %.1f px/deg (%s)', SCR.SCREEN_RES_WIDTH, ...
+        SCR.SCREEN_RES_HEIGHT, SCR.PX_PER_DEG, geomSource));
+end
+if SCR.LayoutFitted
+    user_text(sprintf('Layout fitted to screen: +/-%.1f deg (DEG_PER_REL %g)', SCR.REL2DEG, DEG_PER_REL));
+end
 
 REL2DEG            = SCR.REL2DEG;
 TOKEN_REL_Y        = SCR.TOKEN_REL_Y;
@@ -1187,6 +1201,14 @@ bhv_variable('ManReward', TrialRecord.User.ManReward);
 % 1 = INTAN sync pulse sent before stimulus 1 this trial, 0 = not sent
 % (trial ended before stimulus 1, or the DAQ call failed).
 bhv_variable('IntanTrigger', intanTriggerSent);
+% Detected display geometry, so sessions from different setups (rig, kiosk,
+% laptop) can be compared: [Xsize Ysize] px, MonkeyLogic's pixels/degree,
+% the layout scale actually used (deg per rel; < DEG_PER_REL when fitted),
+% and whether the values were measured (1) or the offline preview (0).
+bhv_variable('ScreenSizePx', [SCREEN_RES_WIDTH SCREEN_RES_HEIGHT]);
+bhv_variable('PixelsPerDegree', PX_PER_DEG);
+bhv_variable('LayoutDegPerRel', REL2DEG);
+bhv_variable('ScreenMeasured', double(SCR.Measured));
 
 numCorrectString = append('Number of Correct Trials within Block: ', num2str(TrialRecord.User.numCorrectWithinBlock));
 user_text(numCorrectString);
@@ -1246,19 +1268,19 @@ eventmarker(round(CONTRAST*255));
 
 %Screen height and width
 eventmarker(1010);
-eventmarker(SCREEN_HEIGHT * 10);
+eventmarker(round(SCREEN_HEIGHT * 10));
 eventmarker(1011);
-eventmarker(SCREEN_WIDTH * 10);
+eventmarker(round(SCREEN_WIDTH * 10));
 
 %Distance to screen
 eventmarker(1012);
-eventmarker(DISTANCE_TO_SCREEN * 10);
+eventmarker(round(DISTANCE_TO_SCREEN * 10));
 
 %Screen resolution
 eventmarker(1013);
-eventmarker(SCREEN_RES_WIDTH);
+eventmarker(round(SCREEN_RES_WIDTH));
 eventmarker(1014);
-eventmarker(SCREEN_RES_HEIGHT);
+eventmarker(round(SCREEN_RES_HEIGHT));
 
 %Fixation dot stimulus information
 eventmarker(2001);
@@ -1305,7 +1327,7 @@ if stims_observed > 0
 
         %Size is the same for all of them too
         eventmarker(2007);
-        eventmarker(SIZE*100);
+        eventmarker(round(SIZE*100));
 
         %Orientation is a bit different depending on the stimulus.
         % ORI_NOT_SHOWN (999) = no movie on this presentation: an 'O' in the
@@ -1359,9 +1381,9 @@ if stims_observed > 0
 
         %x_length y length
         eventmarker(2016);
-        eventmarker(SIZE*10*2);
+        eventmarker(round(SIZE*10*2));
         eventmarker(2017);
-        eventmarker(SIZE*10*2);
+        eventmarker(round(SIZE*10*2));
 
         %Shape
         eventmarker(2018);
@@ -1386,7 +1408,7 @@ if stims_observed > 0
 
         %Donut size
         eventmarker(2026);
-        eventmarker(DONUT_SIZE*100);
+        eventmarker(round(DONUT_SIZE*100));
 
     end
 end
